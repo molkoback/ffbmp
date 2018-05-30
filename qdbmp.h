@@ -1,6 +1,6 @@
 /* QDBMP - Quick n' Dirty BMP
  * 
- * v1.1.0 - 2018-05-30
+ * v2.0.0 - 2018-05-30
  * 
  * The library supports the following BMP variants:
  * 1. Uncompressed 32 BPP (alpha values are ignored)
@@ -11,9 +11,6 @@
  * GitHub:     https://github.com/molkoback/qdbmp
  * Maintainer: Eero Molkoselkä <eero.molkoselka@gmail.com>
  * 
- * 
- * QDBMP is free and open source software, distributed
- * under the MIT licence.
  * 
  * Copyright (c) 2007 Chai Braudo <braudo@users.sourceforge.net>
  * 
@@ -47,8 +44,8 @@
 #define UCHAR uint8_t
 
 /* Version information. */
-#define QDBMP_VERSION_MAJOR 1
-#define QDBMP_VERSION_MINOR 1
+#define QDBMP_VERSION_MAJOR 2
+#define QDBMP_VERSION_MINOR 0
 #define QDBMP_VERSION_PATCH 0
 
 /* BMP error codes. */
@@ -94,26 +91,21 @@ typedef struct BMP {
 
 /* Create and free BMP. */
 BMP *BMP_Create(UINT width, UINT height, USHORT depth);
-void BMP_Free(BMP* bmp);
+void BMP_Free(BMP *bmp);
 
 /* File access. */
-BMP *BMP_ReadFile(const char* filename);
-void BMP_WriteFile(BMP* bmp, const char* filename);
-
-/* Dimension info. */
-UINT BMP_GetWidth(BMP* bmp);
-UINT BMP_GetHeight(BMP* bmp);
-USHORT BMP_GetDepth(BMP* bmp);
+BMP *BMP_ReadFile(const char *filename);
+void BMP_WriteFile(BMP *bmp, const char *filename);
 
 /* Pixel access. */
-void BMP_GetPixelRGB(BMP* bmp, UINT x, UINT y, UCHAR* r, UCHAR* g, UCHAR* b);
-void BMP_SetPixelRGB(BMP* bmp, UINT x, UINT y, UCHAR r, UCHAR g, UCHAR b);
-void BMP_GetPixelIndex(BMP* bmp, UINT x, UINT y, UCHAR* val);
-void BMP_SetPixelIndex(BMP* bmp, UINT x, UINT y, UCHAR val);
+void BMP_GetPixelRGB(BMP *bmp, UINT x, UINT y, UCHAR *r, UCHAR *g, UCHAR *b);
+void BMP_SetPixelRGB(BMP *bmp, UINT x, UINT y, UCHAR r, UCHAR g, UCHAR b);
+void BMP_GetPixelIndex(BMP *bmp, UINT x, UINT y, UCHAR *val);
+void BMP_SetPixelIndex(BMP *bmp, UINT x, UINT y, UCHAR val);
 
 /* Palette handling. */
-void BMP_GetPaletteColor(BMP* bmp, UCHAR index, UCHAR* r, UCHAR* g, UCHAR* b);
-void BMP_SetPaletteColor(BMP* bmp, UCHAR index, UCHAR r, UCHAR g, UCHAR b);
+void BMP_GetPaletteColor(BMP *bmp, UCHAR index, UCHAR *r, UCHAR *g, UCHAR *b);
+void BMP_SetPaletteColor(BMP *bmp, UCHAR index, UCHAR r, UCHAR g, UCHAR b);
 
 /* Error handling. */
 BMP_STATUS BMP_GetError();
