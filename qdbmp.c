@@ -1,18 +1,21 @@
 /* QDBMP - Quick n' Dirty BMP
  * 
  * v1.1.0 - 2018-05-30
- * http://qdbmp.sourceforge.net
- * 
  * 
  * The library supports the following BMP variants:
  * 1. Uncompressed 32 BPP (alpha values are ignored)
  * 2. Uncompressed 24 BPP
  * 3. Uncompressed 8 BPP (indexed color)
  * 
+ * 
+ * GitHub:     https://github.com/molkoback/qdbmp
+ * Maintainer: Eero Molkoselkä <eero.molkoselka@gmail.com>
+ * 
+ * 
  * QDBMP is free and open source software, distributed
  * under the MIT licence.
  * 
- * Copyright (c) 2007 Chai Braudo (braudo@users.sourceforge.net)
+ * Copyright (c) 2007 Chai Braudo <braudo@users.sourceforge.net>
  * 
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -34,48 +37,16 @@
  */
 
 #include "qdbmp.h"
+
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
-
-/* Bitmap header */
-typedef struct _BMP_Header
-{
-	USHORT		Magic;				/* Magic identifier: "BM" */
-	UINT		FileSize;			/* Size of the BMP file in bytes */
-	USHORT		Reserved1;			/* Reserved */
-	USHORT		Reserved2;			/* Reserved */
-	UINT		DataOffset;			/* Offset of image data relative to the file's start */
-	UINT		HeaderSize;			/* Size of the header in bytes */
-	UINT		Width;				/* Bitmap's width */
-	UINT		Height;				/* Bitmap's height */
-	USHORT		Planes;				/* Number of color planes in the bitmap */
-	USHORT		BitsPerPixel;		/* Number of bits per pixel */
-	UINT		CompressionType;	/* Compression type */
-	UINT		ImageDataSize;		/* Size of uncompressed image's data */
-	UINT		HPixelsPerMeter;	/* Horizontal resolution (pixels per meter) */
-	UINT		VPixelsPerMeter;	/* Vertical resolution (pixels per meter) */
-	UINT		ColorsUsed;			/* Number of color indexes in the color table that are actually used by the bitmap */
-	UINT		ColorsRequired;		/* Number of color indexes that are required for displaying the bitmap */
-} BMP_Header;
-
-
-/* Private data structure */
-struct _BMP
-{
-	BMP_Header	Header;
-	UCHAR*		Palette;
-	UCHAR*		Data;
-};
-
-
-/* Holds the last error code */
+/* Holds the last error code. */
 static BMP_STATUS BMP_LAST_ERROR_CODE = 0;
 
-
-/* Error description strings */
-static const char* BMP_ERROR_STRING[] =
-{
+/* Error description strings. */
+static const char *BMP_ERROR_STRING[] = {
 	"",
 	"General error",
 	"Could not allocate enough memory to complete the operation",
@@ -87,35 +58,142 @@ static const char* BMP_ERROR_STRING[] =
 	"The requested action is not compatible with the BMP's type"
 };
 
+/* Size of the palette data for 8 BPP bitmaps. */
+#define BMP_PALETTE_SIZE (256 * 4)
 
-/* Size of the palette data for 8 BPP bitmaps */
-#define BMP_PALETTE_SIZE	( 256 * 4 )
+/* Reads a little-endian unsigned int from the file.
+ * Returns non-zero on success. */
+int ReadUINT(UINT *x, FILE *f)
+{
+	UCHAR little[ 4 ];	/* BMPs use 32 bit ints */
 
+	if ( x == NULL || f == NULL )
+	{
+		return 0;
+	}
 
+	if ( fread( little, 4, 1, f ) != 1 )
+	{
+		return 0;
+	}
 
-/*********************************** Forward declarations **********************************/
-int		ReadHeader	( BMP* bmp, FILE* f );
-int		WriteHeader	( BMP* bmp, FILE* f );
+	*x = ( little[ 3 ] << 24 | little[ 2 ] << 16 | little[ 1 ] << 8 | little[ 0 ] );
 
-int		ReadUINT	( UINT* x, FILE* f );
-int		ReadUSHORT	( USHORT *x, FILE* f );
+	return 1;
+}
 
-int		WriteUINT	( UINT x, FILE* f );
-int		WriteUSHORT	( USHORT x, FILE* f );
+/* Reads a little-endian unsigned short int from the file.
+ * Returns non-zero on success. */
+int ReadUSHORT(USHORT *x, FILE *f)
+{
+	UCHAR little[ 2 ];	/* BMPs use 16 bit shorts */
 
+	if ( x == NULL || f == NULL )
+	{
+		return 0;
+	}
 
+	if ( fread( little, 2, 1, f ) != 1 )
+	{
+		return 0;
+	}
 
+	*x = ( little[ 1 ] << 8 | little[ 0 ] );
 
+	return 1;
+}
 
+/* Reads the BMP file's header into the data structure.
+ * Returns BMP_OK on success. */
+int	ReadHeader(BMP *bmp, FILE* f)
+{
+	if ( bmp == NULL || f == NULL )
+	{
+		return BMP_INVALID_ARGUMENT;
+	}
 
-/*********************************** Public methods **********************************/
+	/* The header's fields are read one by one, and converted from the format's
+	little endian to the system's native representation. */
+	if ( !ReadUSHORT( &( bmp->Header.Magic ), f ) )			return BMP_IO_ERROR;
+	if ( !ReadUINT( &( bmp->Header.FileSize ), f ) )		return BMP_IO_ERROR;
+	if ( !ReadUSHORT( &( bmp->Header.Reserved1 ), f ) )		return BMP_IO_ERROR;
+	if ( !ReadUSHORT( &( bmp->Header.Reserved2 ), f ) )		return BMP_IO_ERROR;
+	if ( !ReadUINT( &( bmp->Header.DataOffset ), f ) )		return BMP_IO_ERROR;
+	if ( !ReadUINT( &( bmp->Header.HeaderSize ), f ) )		return BMP_IO_ERROR;
+	if ( !ReadUINT( &( bmp->Header.Width ), f ) )			return BMP_IO_ERROR;
+	if ( !ReadUINT( &( bmp->Header.Height ), f ) )			return BMP_IO_ERROR;
+	if ( !ReadUSHORT( &( bmp->Header.Planes ), f ) )		return BMP_IO_ERROR;
+	if ( !ReadUSHORT( &( bmp->Header.BitsPerPixel ), f ) )	return BMP_IO_ERROR;
+	if ( !ReadUINT( &( bmp->Header.CompressionType ), f ) )	return BMP_IO_ERROR;
+	if ( !ReadUINT( &( bmp->Header.ImageDataSize ), f ) )	return BMP_IO_ERROR;
+	if ( !ReadUINT( &( bmp->Header.HPixelsPerMeter ), f ) )	return BMP_IO_ERROR;
+	if ( !ReadUINT( &( bmp->Header.VPixelsPerMeter ), f ) )	return BMP_IO_ERROR;
+	if ( !ReadUINT( &( bmp->Header.ColorsUsed ), f ) )		return BMP_IO_ERROR;
+	if ( !ReadUINT( &( bmp->Header.ColorsRequired ), f ) )	return BMP_IO_ERROR;
 
+	return BMP_OK;
+}
 
-/**************************************************************
-	Creates a blank BMP image with the specified dimensions
-	and bit depth.
-**************************************************************/
-BMP* BMP_Create( UINT width, UINT height, USHORT depth )
+/* Writes a little-endian unsigned int to the file.
+ * Returns non-zero on success. */
+int WriteUINT(UINT x, FILE *f)
+{
+	UCHAR little[ 4 ];	/* BMPs use 32 bit ints */
+
+	little[ 3 ] = (UCHAR)( ( x & 0xff000000 ) >> 24 );
+	little[ 2 ] = (UCHAR)( ( x & 0x00ff0000 ) >> 16 );
+	little[ 1 ] = (UCHAR)( ( x & 0x0000ff00 ) >> 8 );
+	little[ 0 ] = (UCHAR)( ( x & 0x000000ff ) >> 0 );
+
+	return ( f && fwrite( little, 4, 1, f ) == 1 );
+}
+
+/* Writes a little-endian unsigned short int to the file.
+ * Returns non-zero on success. */
+int WriteUSHORT(USHORT x, FILE *f)
+{
+	UCHAR little[ 2 ];	/* BMPs use 16 bit shorts */
+
+	little[ 1 ] = (UCHAR)( ( x & 0xff00 ) >> 8 );
+	little[ 0 ] = (UCHAR)( ( x & 0x00ff ) >> 0 );
+
+	return ( f && fwrite( little, 2, 1, f ) == 1 );
+}
+
+/* Writes the BMP file's header into the data structure.
+ * Returns BMP_OK on success. */
+int WriteHeader(BMP *bmp, FILE *f)
+{
+	if ( bmp == NULL || f == NULL )
+	{
+		return BMP_INVALID_ARGUMENT;
+	}
+
+	/* The header's fields are written one by one, and converted to the format's
+	little endian representation. */
+	if ( !WriteUSHORT( bmp->Header.Magic, f ) )			return BMP_IO_ERROR;
+	if ( !WriteUINT( bmp->Header.FileSize, f ) )		return BMP_IO_ERROR;
+	if ( !WriteUSHORT( bmp->Header.Reserved1, f ) )		return BMP_IO_ERROR;
+	if ( !WriteUSHORT( bmp->Header.Reserved2, f ) )		return BMP_IO_ERROR;
+	if ( !WriteUINT( bmp->Header.DataOffset, f ) )		return BMP_IO_ERROR;
+	if ( !WriteUINT( bmp->Header.HeaderSize, f ) )		return BMP_IO_ERROR;
+	if ( !WriteUINT( bmp->Header.Width, f ) )			return BMP_IO_ERROR;
+	if ( !WriteUINT( bmp->Header.Height, f ) )			return BMP_IO_ERROR;
+	if ( !WriteUSHORT( bmp->Header.Planes, f ) )		return BMP_IO_ERROR;
+	if ( !WriteUSHORT( bmp->Header.BitsPerPixel, f ) )	return BMP_IO_ERROR;
+	if ( !WriteUINT( bmp->Header.CompressionType, f ) )	return BMP_IO_ERROR;
+	if ( !WriteUINT( bmp->Header.ImageDataSize, f ) )	return BMP_IO_ERROR;
+	if ( !WriteUINT( bmp->Header.HPixelsPerMeter, f ) )	return BMP_IO_ERROR;
+	if ( !WriteUINT( bmp->Header.VPixelsPerMeter, f ) )	return BMP_IO_ERROR;
+	if ( !WriteUINT( bmp->Header.ColorsUsed, f ) )		return BMP_IO_ERROR;
+	if ( !WriteUINT( bmp->Header.ColorsRequired, f ) )	return BMP_IO_ERROR;
+
+	return BMP_OK;
+}
+
+/* Creates a blank BMP image with the specified dimensions
+ * and bit depth. */
+BMP *BMP_Create(UINT width, UINT height, USHORT depth)
 {
 	BMP*	bmp;
 	int		bytes_per_pixel = depth >> 3;
@@ -204,11 +282,8 @@ BMP* BMP_Create( UINT width, UINT height, USHORT depth )
 	return bmp;
 }
 
-
-/**************************************************************
-	Frees all the memory used by the specified BMP image.
-**************************************************************/
-void BMP_Free( BMP* bmp )
+/* Frees all the memory used by the specified BMP image. */
+void BMP_Free(BMP *bmp)
 {
 	if ( bmp == NULL )
 	{
@@ -230,11 +305,8 @@ void BMP_Free( BMP* bmp )
 	BMP_LAST_ERROR_CODE = BMP_OK;
 }
 
-
-/**************************************************************
-	Reads the specified BMP image file.
-**************************************************************/
-BMP* BMP_ReadFile( const char* filename )
+/* Reads the specified BMP image file. */
+BMP *BMP_ReadFile(const char *filename)
 {
 	BMP*	bmp;
 	FILE*	f;
@@ -344,11 +416,8 @@ BMP* BMP_ReadFile( const char* filename )
 	return bmp;
 }
 
-
-/**************************************************************
-	Writes the BMP image to the specified file.
-**************************************************************/
-void BMP_WriteFile( BMP* bmp, const char* filename )
+/* Writes the BMP image to the specified file. */
+void BMP_WriteFile(BMP *bmp, const char *filename)
 {
 	FILE*	f;
 
@@ -402,11 +471,8 @@ void BMP_WriteFile( BMP* bmp, const char* filename )
 	fclose( f );
 }
 
-
-/**************************************************************
-	Returns the image's width.
-**************************************************************/
-UINT BMP_GetWidth( BMP* bmp )
+/* Returns the image's width. */
+UINT BMP_GetWidth(BMP *bmp)
 {
 	if ( bmp == NULL )
 	{
@@ -419,11 +485,8 @@ UINT BMP_GetWidth( BMP* bmp )
 	return ( bmp->Header.Width );
 }
 
-
-/**************************************************************
-	Returns the image's height.
-**************************************************************/
-UINT BMP_GetHeight( BMP* bmp )
+/* Returns the image's height. */
+UINT BMP_GetHeight(BMP *bmp)
 {
 	if ( bmp == NULL )
 	{
@@ -436,11 +499,8 @@ UINT BMP_GetHeight( BMP* bmp )
 	return ( bmp->Header.Height );
 }
 
-
-/**************************************************************
-	Returns the image's color depth (bits per pixel).
-**************************************************************/
-USHORT BMP_GetDepth( BMP* bmp )
+/* Returns the image's color depth (bits per pixel). */
+USHORT BMP_GetDepth(BMP *bmp)
 {
 	if ( bmp == NULL )
 	{
@@ -453,12 +513,9 @@ USHORT BMP_GetDepth( BMP* bmp )
 	return ( bmp->Header.BitsPerPixel );
 }
 
-
-/**************************************************************
-	Populates the arguments with the specified pixel's RGB
-	values.
-**************************************************************/
-void BMP_GetPixelRGB( BMP* bmp, UINT x, UINT y, UCHAR* r, UCHAR* g, UCHAR* b )
+/* Populates the arguments with the specified pixel's RGB
+ * values. */
+void BMP_GetPixelRGB(BMP *bmp, UINT x, UINT y, UCHAR *r, UCHAR *g, UCHAR *b)
 {
 	UCHAR*	pixel;
 	UINT	bytes_per_row;
@@ -494,10 +551,7 @@ void BMP_GetPixelRGB( BMP* bmp, UINT x, UINT y, UCHAR* r, UCHAR* g, UCHAR* b )
 	}
 }
 
-
-/**************************************************************
-	Sets the specified pixel's RGB values.
-**************************************************************/
+/* Sets the specified pixel's RGB values. */
 void BMP_SetPixelRGB( BMP* bmp, UINT x, UINT y, UCHAR r, UCHAR g, UCHAR b )
 {
 	UCHAR*	pixel;
@@ -533,10 +587,7 @@ void BMP_SetPixelRGB( BMP* bmp, UINT x, UINT y, UCHAR r, UCHAR g, UCHAR b )
 	}
 }
 
-
-/**************************************************************
-	Gets the specified pixel's color index.
-**************************************************************/
+/* Gets the specified pixel's color index. */
 void BMP_GetPixelIndex( BMP* bmp, UINT x, UINT y, UCHAR* val )
 {
 	UCHAR*	pixel;
@@ -567,10 +618,7 @@ void BMP_GetPixelIndex( BMP* bmp, UINT x, UINT y, UCHAR* val )
 	}
 }
 
-
-/**************************************************************
-	Sets the specified pixel's color index.
-**************************************************************/
+/* Sets the specified pixel's color index. */
 void BMP_SetPixelIndex( BMP* bmp, UINT x, UINT y, UCHAR val )
 {
 	UCHAR*	pixel;
@@ -600,10 +648,7 @@ void BMP_SetPixelIndex( BMP* bmp, UINT x, UINT y, UCHAR val )
 	}
 }
 
-
-/**************************************************************
-	Gets the color value for the specified palette index.
-**************************************************************/
+/* Gets the color value for the specified palette index. */
 void BMP_GetPaletteColor( BMP* bmp, UCHAR index, UCHAR* r, UCHAR* g, UCHAR* b )
 {
 	if ( bmp == NULL )
@@ -626,10 +671,7 @@ void BMP_GetPaletteColor( BMP* bmp, UCHAR index, UCHAR* r, UCHAR* g, UCHAR* b )
 	}
 }
 
-
-/**************************************************************
-	Sets the color value for the specified palette index.
-**************************************************************/
+/* Sets the color value for the specified palette index. */
 void BMP_SetPaletteColor( BMP* bmp, UCHAR index, UCHAR r, UCHAR g, UCHAR b )
 {
 	if ( bmp == NULL )
@@ -652,20 +694,14 @@ void BMP_SetPaletteColor( BMP* bmp, UCHAR index, UCHAR r, UCHAR g, UCHAR b )
 	}
 }
 
-
-/**************************************************************
-	Returns the last error code.
-**************************************************************/
+/* Returns the last error code. */
 BMP_STATUS BMP_GetError()
 {
 	return BMP_LAST_ERROR_CODE;
 }
 
-
-/**************************************************************
-	Returns a description of the last error code.
-**************************************************************/
-const char* BMP_GetErrorDescription()
+/* Returns a description of the last error code. */
+const char *BMP_GetErrorDescription()
 {
 	if ( BMP_LAST_ERROR_CODE > 0 && BMP_LAST_ERROR_CODE < BMP_ERROR_NUM )
 	{
@@ -676,158 +712,3 @@ const char* BMP_GetErrorDescription()
 		return NULL;
 	}
 }
-
-
-
-
-
-/*********************************** Private methods **********************************/
-
-
-/**************************************************************
-	Reads the BMP file's header into the data structure.
-	Returns BMP_OK on success.
-**************************************************************/
-int	ReadHeader( BMP* bmp, FILE* f )
-{
-	if ( bmp == NULL || f == NULL )
-	{
-		return BMP_INVALID_ARGUMENT;
-	}
-
-	/* The header's fields are read one by one, and converted from the format's
-	little endian to the system's native representation. */
-	if ( !ReadUSHORT( &( bmp->Header.Magic ), f ) )			return BMP_IO_ERROR;
-	if ( !ReadUINT( &( bmp->Header.FileSize ), f ) )		return BMP_IO_ERROR;
-	if ( !ReadUSHORT( &( bmp->Header.Reserved1 ), f ) )		return BMP_IO_ERROR;
-	if ( !ReadUSHORT( &( bmp->Header.Reserved2 ), f ) )		return BMP_IO_ERROR;
-	if ( !ReadUINT( &( bmp->Header.DataOffset ), f ) )		return BMP_IO_ERROR;
-	if ( !ReadUINT( &( bmp->Header.HeaderSize ), f ) )		return BMP_IO_ERROR;
-	if ( !ReadUINT( &( bmp->Header.Width ), f ) )			return BMP_IO_ERROR;
-	if ( !ReadUINT( &( bmp->Header.Height ), f ) )			return BMP_IO_ERROR;
-	if ( !ReadUSHORT( &( bmp->Header.Planes ), f ) )		return BMP_IO_ERROR;
-	if ( !ReadUSHORT( &( bmp->Header.BitsPerPixel ), f ) )	return BMP_IO_ERROR;
-	if ( !ReadUINT( &( bmp->Header.CompressionType ), f ) )	return BMP_IO_ERROR;
-	if ( !ReadUINT( &( bmp->Header.ImageDataSize ), f ) )	return BMP_IO_ERROR;
-	if ( !ReadUINT( &( bmp->Header.HPixelsPerMeter ), f ) )	return BMP_IO_ERROR;
-	if ( !ReadUINT( &( bmp->Header.VPixelsPerMeter ), f ) )	return BMP_IO_ERROR;
-	if ( !ReadUINT( &( bmp->Header.ColorsUsed ), f ) )		return BMP_IO_ERROR;
-	if ( !ReadUINT( &( bmp->Header.ColorsRequired ), f ) )	return BMP_IO_ERROR;
-
-	return BMP_OK;
-}
-
-
-/**************************************************************
-	Writes the BMP file's header into the data structure.
-	Returns BMP_OK on success.
-**************************************************************/
-int	WriteHeader( BMP* bmp, FILE* f )
-{
-	if ( bmp == NULL || f == NULL )
-	{
-		return BMP_INVALID_ARGUMENT;
-	}
-
-	/* The header's fields are written one by one, and converted to the format's
-	little endian representation. */
-	if ( !WriteUSHORT( bmp->Header.Magic, f ) )			return BMP_IO_ERROR;
-	if ( !WriteUINT( bmp->Header.FileSize, f ) )		return BMP_IO_ERROR;
-	if ( !WriteUSHORT( bmp->Header.Reserved1, f ) )		return BMP_IO_ERROR;
-	if ( !WriteUSHORT( bmp->Header.Reserved2, f ) )		return BMP_IO_ERROR;
-	if ( !WriteUINT( bmp->Header.DataOffset, f ) )		return BMP_IO_ERROR;
-	if ( !WriteUINT( bmp->Header.HeaderSize, f ) )		return BMP_IO_ERROR;
-	if ( !WriteUINT( bmp->Header.Width, f ) )			return BMP_IO_ERROR;
-	if ( !WriteUINT( bmp->Header.Height, f ) )			return BMP_IO_ERROR;
-	if ( !WriteUSHORT( bmp->Header.Planes, f ) )		return BMP_IO_ERROR;
-	if ( !WriteUSHORT( bmp->Header.BitsPerPixel, f ) )	return BMP_IO_ERROR;
-	if ( !WriteUINT( bmp->Header.CompressionType, f ) )	return BMP_IO_ERROR;
-	if ( !WriteUINT( bmp->Header.ImageDataSize, f ) )	return BMP_IO_ERROR;
-	if ( !WriteUINT( bmp->Header.HPixelsPerMeter, f ) )	return BMP_IO_ERROR;
-	if ( !WriteUINT( bmp->Header.VPixelsPerMeter, f ) )	return BMP_IO_ERROR;
-	if ( !WriteUINT( bmp->Header.ColorsUsed, f ) )		return BMP_IO_ERROR;
-	if ( !WriteUINT( bmp->Header.ColorsRequired, f ) )	return BMP_IO_ERROR;
-
-	return BMP_OK;
-}
-
-
-/**************************************************************
-	Reads a little-endian unsigned int from the file.
-	Returns non-zero on success.
-**************************************************************/
-int	ReadUINT( UINT* x, FILE* f )
-{
-	UCHAR little[ 4 ];	/* BMPs use 32 bit ints */
-
-	if ( x == NULL || f == NULL )
-	{
-		return 0;
-	}
-
-	if ( fread( little, 4, 1, f ) != 1 )
-	{
-		return 0;
-	}
-
-	*x = ( little[ 3 ] << 24 | little[ 2 ] << 16 | little[ 1 ] << 8 | little[ 0 ] );
-
-	return 1;
-}
-
-
-/**************************************************************
-	Reads a little-endian unsigned short int from the file.
-	Returns non-zero on success.
-**************************************************************/
-int	ReadUSHORT( USHORT *x, FILE* f )
-{
-	UCHAR little[ 2 ];	/* BMPs use 16 bit shorts */
-
-	if ( x == NULL || f == NULL )
-	{
-		return 0;
-	}
-
-	if ( fread( little, 2, 1, f ) != 1 )
-	{
-		return 0;
-	}
-
-	*x = ( little[ 1 ] << 8 | little[ 0 ] );
-
-	return 1;
-}
-
-
-/**************************************************************
-	Writes a little-endian unsigned int to the file.
-	Returns non-zero on success.
-**************************************************************/
-int	WriteUINT( UINT x, FILE* f )
-{
-	UCHAR little[ 4 ];	/* BMPs use 32 bit ints */
-
-	little[ 3 ] = (UCHAR)( ( x & 0xff000000 ) >> 24 );
-	little[ 2 ] = (UCHAR)( ( x & 0x00ff0000 ) >> 16 );
-	little[ 1 ] = (UCHAR)( ( x & 0x0000ff00 ) >> 8 );
-	little[ 0 ] = (UCHAR)( ( x & 0x000000ff ) >> 0 );
-
-	return ( f && fwrite( little, 4, 1, f ) == 1 );
-}
-
-
-/**************************************************************
-	Writes a little-endian unsigned short int to the file.
-	Returns non-zero on success.
-**************************************************************/
-int	WriteUSHORT( USHORT x, FILE* f )
-{
-	UCHAR little[ 2 ];	/* BMPs use 16 bit shorts */
-
-	little[ 1 ] = (UCHAR)( ( x & 0xff00 ) >> 8 );
-	little[ 0 ] = (UCHAR)( ( x & 0x00ff ) >> 0 );
-
-	return ( f && fwrite( little, 2, 1, f ) == 1 );
-}
-
