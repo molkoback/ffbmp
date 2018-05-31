@@ -31,7 +31,6 @@
  * THE SOFTWARE.
  */
 
-
 #ifndef _BMP_H_
 #define _BMP_H_
 
@@ -48,18 +47,14 @@
 #define FFBMP_VERSION_PATCH 0
 
 /* BMP error codes. */
-typedef enum {
-	BMP_OK = 0,             // No error
-	BMP_ERROR,              // General error
-	BMP_OUT_OF_MEMORY,      // Could not allocate enough memory to complete the operation
-	BMP_IO_ERROR,           // General input/output error
-	BMP_FILE_NOT_FOUND,     // File not found
-	BMP_FILE_NOT_SUPPORTED, // File is not a supported BMP variant
-	BMP_FILE_INVALID,       // File is not a BMP image or is an invalid BMP
-	BMP_INVALID_ARGUMENT,   // An argument is invalid or out of range
-	BMP_TYPE_MISMATCH,      // The requested action is not compatible with the BMP's type
-	BMP_ERROR_NUM
-} BMP_STATUS;
+enum {
+	BMP_OK = 0,                  // No error
+	BMP_OUT_OF_MEMORY = -1,      // Couldn't allocate enough memory
+	BMP_IO_ERROR = -2,           // General input/output error
+	BMP_FILE_OPEN_ERROR = -3,    // Couldn't open the file
+	BMP_FILE_TYPE_ERROR = -4,    // File is not a BMP image or is an invalid BMP
+	BMP_FILE_NOT_SUPPORTED = -5, // File is not a supported BMP variant
+};
 
 /* BMP header. */
 typedef struct BMP_Header {
@@ -88,26 +83,37 @@ typedef struct BMP {
 	UCHAR *Data;
 } BMP;
 
-/* Create and free BMP. */
-BMP *BMP_Create(UINT width, UINT height, USHORT depth);
+/* Creates a blank BMP image with the specified dimensions and bit depth. */
+int BMP_Create(BMP *bmp, UINT width, UINT height, USHORT depth);
+
+/* Frees all the memory used by the specified BMP image. */
 void BMP_Free(BMP *bmp);
 
-/* File access. */
-BMP *BMP_ReadFile(const char *filename);
-void BMP_WriteFile(BMP *bmp, const char *filename);
+/* Reads the specified BMP image file. */
+int BMP_ReadFile(BMP *bmp, const char *filename);
 
-/* Pixel access. */
+/* Writes the BMP image to the specified file. */
+int BMP_WriteFile(BMP *bmp, const char *filename);
+
+/* Populates the arguments with the specified pixel's RGB values. */
 void BMP_GetPixelRGB(BMP *bmp, UINT x, UINT y, UCHAR *r, UCHAR *g, UCHAR *b);
+
+/* Sets the specified pixel's RGB values. */
 void BMP_SetPixelRGB(BMP *bmp, UINT x, UINT y, UCHAR r, UCHAR g, UCHAR b);
+
+/* Gets the specified pixel's color index. */
 void BMP_GetPixelIndex(BMP *bmp, UINT x, UINT y, UCHAR *val);
+
+/* Sets the specified pixel's color index. */
 void BMP_SetPixelIndex(BMP *bmp, UINT x, UINT y, UCHAR val);
 
-/* Palette handling. */
+/* Gets the color value for the specified palette index. */
 void BMP_GetPaletteColor(BMP *bmp, UCHAR index, UCHAR *r, UCHAR *g, UCHAR *b);
+
+/* Sets the color value for the specified palette index. */
 void BMP_SetPaletteColor(BMP *bmp, UCHAR index, UCHAR r, UCHAR g, UCHAR b);
 
-/* Error handling. */
-BMP_STATUS BMP_GetError();
-const char *BMP_GetErrorDescription();
+/* Returns a description of the error code. */
+const char *BMP_ErrorString(int err);
 
 #endif
