@@ -33,18 +33,19 @@
 
 #ifndef _BMP_H_
 #define _BMP_H_
+#define _FFBMP_H_
 
 #include <stdint.h>
-
-/* Type definitions. */
-#define UINT uint32_t
-#define USHORT uint16_t
-#define UCHAR uint8_t
 
 /* Version information. */
 #define FFBMP_VERSION_MAJOR 1
 #define FFBMP_VERSION_MINOR 0
 #define FFBMP_VERSION_PATCH 0
+
+/* Type definitions. */
+#define UINT uint32_t
+#define USHORT uint16_t
+#define UCHAR uint8_t
 
 /* BMP error codes. */
 enum {
