@@ -1,6 +1,7 @@
-/* QDBMP - Quick n' Dirty BMP
+/* FFBMP - Fast n' Filthy BMP
+ * https://github.com/molkoback/ffbmp
  * 
- * v2.0.0 - 2018-05-30
+ * v1.0.0 - 2018-05-31
  * 
  * The library supports the following BMP variants:
  * 1. Uncompressed 32 BPP (alpha values are ignored)
@@ -8,11 +9,8 @@
  * 3. Uncompressed 8 BPP (indexed color)
  * 
  * 
- * GitHub:     https://github.com/molkoback/qdbmp
- * Maintainer: Eero Molkoselkä <eero.molkoselka@gmail.com>
- * 
- * 
  * Copyright (c) 2007 Chai Braudo <braudo@users.sourceforge.net>
+ * Copyright (c) 2018 Eero Molkoselkä <eero.molkoselka@gmail.com>
  * 
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -33,7 +31,7 @@
  * THE SOFTWARE.
  */
 
-#include "qdbmp.h"
+#include "ffbmp.h"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -520,7 +518,7 @@ void BMP_GetPaletteColor(BMP *bmp, UCHAR index, UCHAR *r, UCHAR *g, UCHAR *b)
 }
 
 /* Sets the color value for the specified palette index. */
-void BMP_SetPaletteColor( BMP* bmp, UCHAR index, UCHAR r, UCHAR g, UCHAR b )
+void BMP_SetPaletteColor(BMP *bmp, UCHAR index, UCHAR r, UCHAR g, UCHAR b)
 {
 	if (bmp == NULL) {
 		last_error = BMP_INVALID_ARGUMENT;

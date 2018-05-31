@@ -1,6 +1,7 @@
-/* QDBMP - Quick n' Dirty BMP
+/* FFBMP - Fast n' Filthy BMP
+ * https://github.com/molkoback/ffbmp
  * 
- * v2.0.0 - 2018-05-30
+ * v1.0.0 - 2018-05-31
  * 
  * The library supports the following BMP variants:
  * 1. Uncompressed 32 BPP (alpha values are ignored)
@@ -8,11 +9,8 @@
  * 3. Uncompressed 8 BPP (indexed color)
  * 
  * 
- * GitHub:     https://github.com/molkoback/qdbmp
- * Maintainer: Eero Molkoselkä <eero.molkoselka@gmail.com>
- * 
- * 
  * Copyright (c) 2007 Chai Braudo <braudo@users.sourceforge.net>
+ * Copyright (c) 2018 Eero Molkoselkä <eero.molkoselka@gmail.com>
  * 
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -33,6 +31,7 @@
  * THE SOFTWARE.
  */
 
+
 #ifndef _BMP_H_
 #define _BMP_H_
 
@@ -44,9 +43,9 @@
 #define UCHAR uint8_t
 
 /* Version information. */
-#define QDBMP_VERSION_MAJOR 2
-#define QDBMP_VERSION_MINOR 0
-#define QDBMP_VERSION_PATCH 0
+#define FFBMP_VERSION_MAJOR 1
+#define FFBMP_VERSION_MINOR 0
+#define FFBMP_VERSION_PATCH 0
 
 /* BMP error codes. */
 typedef enum {
