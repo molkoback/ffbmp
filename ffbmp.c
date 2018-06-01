@@ -1,7 +1,7 @@
 /* FFBMP - Fast n' Filthy BMP
  * https://github.com/molkoback/ffbmp
  * 
- * v1.0.0 - 2018-05-31
+ * v1.0.1 - 2018-06-01
  * 
  * The library supports the following BMP variants:
  * 1. Uncompressed 32 BPP (alpha values are ignored)
@@ -235,7 +235,6 @@ int BMP_ReadFile(BMP *bmp, const char *filename)
 			goto end;
 		}
 	}
-	// Not an indexed image
 	else {
 		bmp->Palette = NULL;
 	}
@@ -255,7 +254,6 @@ int BMP_ReadFile(BMP *bmp, const char *filename)
 		err = BMP_FILE_TYPE_ERROR;
 		free(bmp->Data);
 		free(bmp->Palette);
-		goto end;
 	}
 	
 end:
@@ -270,7 +268,6 @@ int BMP_WriteFile(BMP *bmp, const char *filename)
 	int err = BMP_OK;
 	FILE *fp = NULL;
 	if ((fp = fopen(filename, "wb")) == NULL) {
-		printf(">> %s <<\n", filename);
 		err = BMP_FILE_OPEN_ERROR;
 		goto end;
 	}

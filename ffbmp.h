@@ -1,7 +1,7 @@
 /* FFBMP - Fast n' Filthy BMP
  * https://github.com/molkoback/ffbmp
  * 
- * v1.0.0 - 2018-05-31
+ * v1.0.1 - 2018-06-01
  * 
  * The library supports the following BMP variants:
  * 1. Uncompressed 32 BPP (alpha values are ignored)
