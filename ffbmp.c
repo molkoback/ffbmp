@@ -1,7 +1,7 @@
 /* FFBMP - Fast n' Filthy BMP
  * https://github.com/molkoback/ffbmp
  * 
- * v1.0.1 - 2018-06-01
+ * v1.0.2 - 2018-06-08
  * 
  * The library supports the following BMP variants:
  * 1. Uncompressed 32 BPP (alpha values are ignored)
@@ -131,6 +131,9 @@ static int WriteHeader(BMP *bmp, FILE *fp)
 	return BMP_OK;
 }
 
+/* BMP row size in bytes. */
+#define RowSize(width, depth) (((UINT)((width*depth + 31) / 32)) * 4)
+
 /* Creates a blank BMP image with the specified dimensions and bit depth. */
 int BMP_Create(BMP *bmp, UINT width, UINT height, USHORT depth)
 {
@@ -151,9 +154,7 @@ int BMP_Create(BMP *bmp, UINT width, UINT height, USHORT depth)
 	
 	// Calculate the number of bytes used to store a single image row. This is always
 	// rounded up to the next multiple of 4.
-	const UCHAR bytes_per_pixel = depth >> 3;
-	UINT bytes_per_row = width * bytes_per_pixel;
-	bytes_per_row += bytes_per_row % 4 ? 4 - bytes_per_row % 4 : 0;
+	UINT bytes_per_row = RowSize(width, depth);
 	
 	// Set header's image specific values 
 	bmp->Header.Width = width;
@@ -197,12 +198,13 @@ void BMP_Free(BMP *bmp)
 int BMP_ReadFile(BMP *bmp, const char *filename)
 {
 	// Open file
+	int err = BMP_OK;
+	size_t n;
 	FILE *fp = NULL;
 	if ((fp = fopen(filename, "rb")) == NULL)
 		return BMP_FILE_OPEN_ERROR;
 	
 	// Read header
-	int err = BMP_OK;
 	if (ReadHeader(bmp, fp) != BMP_OK || bmp->Header.Magic != 0x4D42) {
 		err = BMP_FILE_TYPE_ERROR;
 		goto end;
@@ -226,10 +228,8 @@ int BMP_ReadFile(BMP *bmp, const char *filename)
 			err = BMP_OUT_OF_MEMORY;
 			goto end;
 		}
-		
-		if (fread(bmp->Palette, sizeof(UCHAR), BMP_PALETTE_SIZE, fp) !=
-		    BMP_PALETTE_SIZE)
-		{
+		n = fread(bmp->Palette, sizeof(UCHAR), BMP_PALETTE_SIZE, fp);
+		if (n != BMP_PALETTE_SIZE) {
 			err = BMP_FILE_TYPE_ERROR;
 			free(bmp->Palette);
 			goto end;
@@ -239,18 +239,15 @@ int BMP_ReadFile(BMP *bmp, const char *filename)
 		bmp->Palette = NULL;
 	}
 	
-	/* Allocate memory for image data */
+	// Allocate and read image data
 	bmp->Data = (UCHAR*)malloc(bmp->Header.ImageDataSize);
 	if (bmp->Data == NULL) {
 		err = BMP_OUT_OF_MEMORY;
 		free(bmp->Palette);
 		goto end;
 	}
-	
-	// Read image data
-	if (fread( bmp->Data, sizeof(UCHAR), bmp->Header.ImageDataSize, fp) !=
-	    bmp->Header.ImageDataSize)
-	{
+	n = fread(bmp->Data, sizeof(UCHAR), bmp->Header.ImageDataSize, fp);
+	if (n != bmp->Header.ImageDataSize) {
 		err = BMP_FILE_TYPE_ERROR;
 		free(bmp->Data);
 		free(bmp->Palette);
@@ -266,6 +263,7 @@ int BMP_WriteFile(BMP *bmp, const char *filename)
 {
 	// Open file
 	int err = BMP_OK;
+	size_t n;
 	FILE *fp = NULL;
 	if ((fp = fopen(filename, "wb")) == NULL) {
 		err = BMP_FILE_OPEN_ERROR;
@@ -280,40 +278,42 @@ int BMP_WriteFile(BMP *bmp, const char *filename)
 	
 	// Write palette
 	if (bmp->Palette) {
-		if (fwrite(bmp->Palette, sizeof(UCHAR), BMP_PALETTE_SIZE, fp) !=
-		    BMP_PALETTE_SIZE)
-		{
+		n = fwrite(bmp->Palette, sizeof(UCHAR), BMP_PALETTE_SIZE, fp);
+		if (n != BMP_PALETTE_SIZE) {
 			err = BMP_IO_ERROR;
 			goto end;
 		}
 	}
 	
 	// Write data
-	if (fwrite(bmp->Data, sizeof(UCHAR), bmp->Header.ImageDataSize, fp) !=
-	    bmp->Header.ImageDataSize)
-	{
+	n = fwrite(bmp->Data, sizeof(UCHAR), bmp->Header.ImageDataSize, fp);
+	if (n != bmp->Header.ImageDataSize)
 		err = BMP_IO_ERROR;
-	}
 	
 end:
 	fclose(fp);
 	return err;
 }
 
+/* BMP pixel location. */
+static UCHAR *GetPixel(BMP *bmp, UINT x, UINT y)
+{
+	UCHAR bytes_per_pixel = bmp->Header.BitsPerPixel >> 3;
+	UINT bytes_per_row = bmp->Header.ImageDataSize / bmp->Header.Height;
+	return bmp->Data + (bmp->Header.Height-y-1)*bytes_per_row + x*bytes_per_pixel;
+}
+
+/* BMP palette color location. */
+#define GetColor(bmp, index) (bmp->Palette + index * 4)
+
 /* Populates the arguments with the specified pixel's RGB values. */
 void BMP_GetPixelRGB(BMP *bmp, UINT x, UINT y, UCHAR *r, UCHAR *g, UCHAR *b)
 {
-	const UCHAR bytes_per_pixel = bmp->Header.BitsPerPixel >> 3;
-	
-	// Row's size is rounded up to the next multiple of 4 bytes 
-	const UINT bytes_per_row = bmp->Header.ImageDataSize / bmp->Header.Height;
-	
-	// Calculate the location of the relevant pixel (rows are flipped)
-	UCHAR *pixel = bmp->Data + (bmp->Header.Height-y-1)*bytes_per_row + x*bytes_per_pixel;
+	UCHAR *pixel = GetPixel(bmp, x, y);
 	
 	// In indexed color mode the pixel's value is an index within the palette 
 	if (bmp->Header.BitsPerPixel == 8)
-		pixel = bmp->Palette + *pixel * 4;
+		pixel = GetColor(bmp, *pixel);
 	
 	if (b != NULL)
 		*b = *(pixel + 0);
@@ -326,14 +326,7 @@ void BMP_GetPixelRGB(BMP *bmp, UINT x, UINT y, UCHAR *r, UCHAR *g, UCHAR *b)
 /* Sets the specified pixel's RGB values. */
 void BMP_SetPixelRGB(BMP *bmp, UINT x, UINT y, UCHAR r, UCHAR g, UCHAR b)
 {
-	const UCHAR bytes_per_pixel = bmp->Header.BitsPerPixel >> 3;
-	
-	// Row's size is rounded up to the next multiple of 4 bytes
-	const UINT bytes_per_row = bmp->Header.ImageDataSize / bmp->Header.Height;
-	
-	// Calculate the location of the relevant pixel (rows are flipped)
-	UCHAR *pixel = bmp->Data + (bmp->Header.Height-y-1)*bytes_per_row + x*bytes_per_pixel;
-	
+	UCHAR *pixel = GetPixel(bmp, x, y);
 	*(pixel + 0) = b;
 	*(pixel + 1) = g;
 	*(pixel + 2) = r;
@@ -342,44 +335,34 @@ void BMP_SetPixelRGB(BMP *bmp, UINT x, UINT y, UCHAR r, UCHAR g, UCHAR b)
 /* Gets the specified pixel's color index. */
 void BMP_GetPixelIndex(BMP *bmp, UINT x, UINT y, UCHAR *val)
 {
-	// Row's size is rounded up to the next multiple of 4 bytes
-	const UINT bytes_per_row = bmp->Header.ImageDataSize / bmp->Header.Height;
-	
-	// Calculate the location of the relevant pixel
-	UCHAR *pixel = bmp->Data + (bmp->Header.Height-y-1)*bytes_per_row + x;
-	
-	if (val != NULL)
-		*val = *pixel;
+	*val = *(GetPixel(bmp, x, y));
 }
 
 /* Sets the specified pixel's color index. */
 void BMP_SetPixelIndex(BMP *bmp, UINT x, UINT y, UCHAR val)
 {
-	// Row's size is rounded up to the next multiple of 4 bytes
-	const UINT bytes_per_row = bmp->Header.ImageDataSize / bmp->Header.Height;
-	
-	// Calculate the location of the relevant pixel
-	UCHAR *pixel = bmp->Data + (bmp->Header.Height-y-1)*bytes_per_row + x;
-	*pixel = val;
+	*(GetPixel(bmp, x, y)) = val;
 }
 
 /* Gets the color value for the specified palette index. */
 void BMP_GetPaletteColor(BMP *bmp, UCHAR index, UCHAR *r, UCHAR *g, UCHAR *b)
 {
+	UCHAR *color = GetColor(bmp, index);
 	if (b != NULL)
-		*b = *(bmp->Palette + index * 4 + 0);
+		*b = *(color + 0);
 	if (g != NULL)
-		*g = *(bmp->Palette + index * 4 + 1);
+		*g = *(color + 1);
 	if (r != NULL)
-		*r = *(bmp->Palette + index * 4 + 2);
+		*r = *(color + 2);
 }
 
 /* Sets the color value for the specified palette index. */
 void BMP_SetPaletteColor(BMP *bmp, UCHAR index, UCHAR r, UCHAR g, UCHAR b)
 {
-	*(bmp->Palette + index * 4 + 0) = b;
-	*(bmp->Palette + index * 4 + 1) = g;
-	*(bmp->Palette + index * 4 + 2) = r;
+	UCHAR *color = GetColor(bmp, index);
+	*(color + 0) = b;
+	*(color + 1) = g;
+	*(color + 2) = r;
 }
 
 /* Returns a description of the last error code. */

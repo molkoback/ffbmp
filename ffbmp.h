@@ -1,7 +1,7 @@
 /* FFBMP - Fast n' Filthy BMP
  * https://github.com/molkoback/ffbmp
  * 
- * v1.0.1 - 2018-06-01
+ * v1.0.2 - 2018-06-08
  * 
  * The library supports the following BMP variants:
  * 1. Uncompressed 32 BPP (alpha values are ignored)
@@ -40,7 +40,7 @@
 /* Version information. */
 #define FFBMP_VERSION_MAJOR 1
 #define FFBMP_VERSION_MINOR 0
-#define FFBMP_VERSION_PATCH 0
+#define FFBMP_VERSION_PATCH 2
 
 /* Type definitions. */
 #define UINT uint32_t
@@ -58,7 +58,7 @@ enum {
 };
 
 /* BMP header. */
-typedef struct BMP_Header {
+typedef struct {
 	USHORT Magic;         // Magic identifier: "BM"
 	UINT FileSize;        // Size of the BMP file in bytes
 	USHORT Reserved1;     // Reserved
@@ -78,7 +78,7 @@ typedef struct BMP_Header {
 } BMP_Header;
 
 /* BMP image. */
-typedef struct BMP {
+typedef struct {
 	BMP_Header Header;
 	UCHAR *Palette;
 	UCHAR *Data;
