@@ -34,6 +34,7 @@
 #include "ffbmp.h"
 
 #include <stdio.h>
+#include <stddef.h>
 #include <stdlib.h>
 
 /* Size of the palette data for 8 BPP bitmaps. */
@@ -167,7 +168,7 @@ int BMP_Create(BMP *bmp, UINT width, UINT height, USHORT depth)
 	
 	// Allocate palette
 	if (bmp->Header.BitsPerPixel == 8) {
-		bmp->Palette = (UCHAR *)calloc(BMP_PALETTE_SIZE, sizeof(UCHAR));
+		bmp->Palette = calloc(BMP_PALETTE_SIZE, sizeof(UCHAR));
 		if (bmp->Palette == NULL) {
 			return BMP_OUT_OF_MEMORY;
 		}
@@ -177,7 +178,7 @@ int BMP_Create(BMP *bmp, UINT width, UINT height, USHORT depth)
 	}
 	
 	// Allocate pixels
-	bmp->Data = (UCHAR *)calloc(bmp->Header.ImageDataSize, sizeof(UCHAR));
+	bmp->Data = calloc(bmp->Header.ImageDataSize, sizeof(UCHAR));
 	if (bmp->Data == NULL) {
 		free(bmp->Palette);
 		return BMP_OUT_OF_MEMORY;
@@ -223,7 +224,7 @@ int BMP_ReadFile(BMP *bmp, const char *filename)
 	
 	// Allocate and read palette
 	if (bmp->Header.BitsPerPixel == 8) {
-		bmp->Palette = (UCHAR*)malloc(BMP_PALETTE_SIZE * sizeof(UCHAR));
+		bmp->Palette = malloc(BMP_PALETTE_SIZE * sizeof(UCHAR));
 		if (bmp->Palette == NULL) {
 			err = BMP_OUT_OF_MEMORY;
 			goto end;
@@ -240,7 +241,7 @@ int BMP_ReadFile(BMP *bmp, const char *filename)
 	}
 	
 	// Allocate and read image data
-	bmp->Data = (UCHAR*)malloc(bmp->Header.ImageDataSize);
+	bmp->Data = malloc(bmp->Header.ImageDataSize);
 	if (bmp->Data == NULL) {
 		err = BMP_OUT_OF_MEMORY;
 		free(bmp->Palette);
@@ -363,6 +364,50 @@ void BMP_SetPaletteColor(BMP *bmp, UCHAR index, UCHAR r, UCHAR g, UCHAR b)
 	*(color + 0) = b;
 	*(color + 1) = g;
 	*(color + 2) = r;
+}
+
+/* Uncompresses BMP. */
+static int Uncompress(BMP *bmp)
+{
+	// TODO
+	return BMP_INVALID_OPERATION;
+}
+
+/* Compresses BMP using RLE-8. */
+static int CompressRLE8(BMP *bmp)
+{
+	// TODO
+	return BMP_INVALID_OPERATION;
+}
+
+/* Compresses BMP using RLE-4. */
+static int CompressRLE4(BMP *bmp)
+{
+	// TODO
+	return BMP_INVALID_OPERATION;
+}
+
+/* Compresses/uncompresses BMP to given type. */
+int BMP_Compress(BMP *bmp, UINT type)
+{
+	if (bmp->Header.CompressionType == type)
+		return BMP_OK;
+	
+	// Uncompress first
+	int err = Uncompress(bmp);
+	if (err != BMP_OK) return err;
+	
+	// Then compress
+	switch (type) {
+	case BMP_NONE:
+		return BMP_OK;
+	case BMP_RLE8:
+		return CompressRLE8(bmp);
+	case BMP_REL4:
+		return CompressRLE4(bmp);
+	default:
+		return BMP_INVALID_OPERATION;
+	}
 }
 
 /* Returns a description of the last error code. */

@@ -48,13 +48,21 @@
 #define UCHAR uint8_t
 
 /* BMP error codes. */
-enum {
+enum BMP_Error {
 	BMP_OK = 0,                  // No error
 	BMP_OUT_OF_MEMORY = -1,      // Couldn't allocate enough memory
 	BMP_IO_ERROR = -2,           // General input/output error
 	BMP_FILE_OPEN_ERROR = -3,    // Couldn't open the file
 	BMP_FILE_TYPE_ERROR = -4,    // File is not a BMP image or is an invalid BMP
 	BMP_FILE_NOT_SUPPORTED = -5, // File is not a supported BMP variant
+	BMP_INVALID_OPERATION = -6   // Operation is not supported
+};
+
+/* BMP compression types. */
+enum BMP_CompressionType {
+	BMP_NONE = 0,
+	BMP_RLE8 = 1,
+	BMP_REL4 = 2
 };
 
 /* BMP header. */
